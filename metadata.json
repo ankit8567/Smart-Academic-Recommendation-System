@@ -1,0 +1,8 @@
+{
+  "name": "Academic Path Smart Guide",
+  "description": "A personalized learning platform providing tailored subject recommendations, career roadmaps, and progress tracking for college students.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
