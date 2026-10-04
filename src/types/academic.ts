@@ -154,6 +154,7 @@ export interface AcademicNotification {
 
 export type NavigationTab =
   | 'dashboard'
+  | 'planner'
   | 'profile'
   | 'recommendations'
   | 'roadmap'
@@ -162,3 +163,61 @@ export type NavigationTab =
   | 'collaborative'
   | 'mentor'
   | 'admin';
+
+export type EnergyMood = 'high' | 'moderate' | 'low' | 'sprint';
+
+export interface MoodCheckIn {
+  energy: EnergyMood;
+  note?: string;
+  checkedInAt: string; // ISO string
+}
+
+export interface Badge {
+  id: string;
+  title: string;
+  description: string;
+  iconName: string;
+  category: 'streak' | 'learning' | 'mastery' | 'consistency';
+  xpReward: number;
+  unlockedAt?: string;
+}
+
+export interface GamificationState {
+  streakDays: number;
+  lastActiveDate: string; // YYYY-MM-DD
+  totalXP: number;
+  unlockedBadgeIds: string[];
+  streakFreezeCount: number;
+}
+
+export type DayOfWeek =
+  | 'Monday'
+  | 'Tuesday'
+  | 'Wednesday'
+  | 'Thursday'
+  | 'Friday'
+  | 'Saturday'
+  | 'Sunday';
+
+export type TimeSlot = 'Morning' | 'Afternoon' | 'Evening';
+
+export interface StudySession {
+  id: string;
+  subjectId: string;
+  subjectCode: string;
+  subjectName: string;
+  topicId?: string;
+  topicTitle?: string;
+  day: DayOfWeek;
+  slot: TimeSlot;
+  durationMinutes: number; // e.g. 45, 60, 90
+  difficulty: DifficultyLevel;
+  completed: boolean;
+  isWeakArea: boolean;
+}
+
+export interface PlannerSettings {
+  weeklyAvailableHours: number;
+  preferredSlots: TimeSlot[];
+}
+

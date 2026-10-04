@@ -7,6 +7,11 @@ import {
   MentorNote,
   AcademicNotification,
   NavigationTab,
+  StudySession,
+  PlannerSettings,
+  MoodCheckIn,
+  EnergyMood,
+  GamificationState,
 } from './types/academic';
 import {
   INITIAL_SUBJECTS,
@@ -15,7 +20,17 @@ import {
   INITIAL_PEER_STUDENTS,
   INITIAL_MENTOR_NOTES,
   INITIAL_NOTIFICATIONS,
+  INITIAL_STUDY_SESSIONS,
+  INITIAL_PLANNER_SETTINGS,
+  INITIAL_MOOD_CHECKIN,
 } from './data/seedData';
+import {
+  INITIAL_GAMIFICATION_STATE,
+  calculateLevel,
+  recordDailyActivity,
+  checkAndAwardBadge,
+} from './utils/gamification';
+import { triggerConfetti } from './utils/confetti';
 import { ProfileOnboarding } from './components/ProfileOnboarding';
 import { RecommendationsView } from './components/RecommendationsView';
 import { LearningPathsView } from './components/LearningPathsView';
@@ -26,6 +41,9 @@ import { MentorView } from './components/MentorView';
 import { AdminPanelView } from './components/AdminPanelView';
 import { StudyPlanExportModal } from './components/StudyPlanExportModal';
 import { OpheliaChatbot } from './components/OpheliaChatbot';
+import { WeeklySmartPlannerView } from './components/WeeklySmartPlannerView';
+import { GamificationModal } from './components/GamificationModal';
+import { ShareableProfileCardModal } from './components/ShareableProfileCardModal';
 import {
   Sun,
   Moon,
@@ -43,6 +61,10 @@ import {
   Menu,
   X,
   Bot,
+  Flame,
+  Trophy,
+  Calendar,
+  Share2,
 } from 'lucide-react';
 
 const STORAGE_KEYS = {
@@ -52,6 +74,10 @@ const STORAGE_KEYS = {
   MENTOR_NOTES: 'sars_mentor_notes_v1',
   NOTIFICATIONS: 'sars_notifications_v1',
   THEME: 'sars_theme_v1',
+  GAMIFICATION: 'sars_gamification_v1',
+  MOOD: 'sars_mood_v1',
+  SESSIONS: 'sars_sessions_v1',
+  PLANNER_SETTINGS: 'sars_planner_settings_v1',
 };
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -107,6 +133,19 @@ export function App() {
     () => loadFromStorage(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS)
   );
 
+  const [gamification, setGamification] = useState<GamificationState>(() =>
+    loadFromStorage(STORAGE_KEYS.GAMIFICATION, INITIAL_GAMIFICATION_STATE)
+  );
+  const [currentMood, setCurrentMood] = useState<MoodCheckIn>(() =>
+    loadFromStorage(STORAGE_KEYS.MOOD, INITIAL_MOOD_CHECKIN)
+  );
+  const [sessions, setSessions] = useState<StudySession[]>(() =>
+    loadFromStorage(STORAGE_KEYS.SESSIONS, INITIAL_STUDY_SESSIONS)
+  );
+  const [plannerSettings, setPlannerSettings] = useState<PlannerSettings>(() =>
+    loadFromStorage(STORAGE_KEYS.PLANNER_SETTINGS, INITIAL_PLANNER_SETTINGS)
+  );
+
   const [activeTab, setActiveTab] = useState<NavigationTab>(() =>
     profile.onboardingCompleted ? 'dashboard' : 'profile'
   );
@@ -117,7 +156,46 @@ export function App() {
     useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showOpheliaChat, setShowOpheliaChat] = useState(false);
+  const [showGamificationModal, setShowGamificationModal] = useState(false);
+  const [showShareCardModal, setShowShareCardModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Daily activity / streak check
+  useEffect(() => {
+    setGamification((prev) => recordDailyActivity(prev));
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.GAMIFICATION, JSON.stringify(gamification));
+    } catch {
+      // Ignore
+    }
+  }, [gamification]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.MOOD, JSON.stringify(currentMood));
+    } catch {
+      // Ignore
+    }
+  }, [currentMood]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
+    } catch {
+      // Ignore
+    }
+  }, [sessions]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PLANNER_SETTINGS, JSON.stringify(plannerSettings));
+    } catch {
+      // Ignore
+    }
+  }, [plannerSettings]);
 
   useEffect(() => {
     try {
@@ -195,12 +273,31 @@ export function App() {
     });
   };
 
+  const handleAwardXP = (amount: number, reason: string) => {
+    setGamification((prev) => ({
+      ...prev,
+      totalXP: prev.totalXP + amount,
+    }));
+  };
+
+  const handleUpdateMood = (energy: EnergyMood) => {
+    setCurrentMood({
+      energy,
+      checkedInAt: new Date().toISOString(),
+    });
+    setGamification((prev) => checkAndAwardBadge(prev, 'mindful_student'));
+    handleAwardXP(25, 'Daily mood check-in completed');
+  };
+
   const handleOpenRoadmapForSubject = (subjectId: string) => {
     setRoadmapTargetSubjectId(subjectId);
     setActiveTab('roadmap');
   };
 
   const handleMarkPrerequisiteComplete = (subjectId: string) => {
+    handleAwardXP(100, 'Prerequisite completed');
+    setGamification((prev) => checkAndAwardBadge(prev, 'prereq_master'));
+
     setProfile((prev) => {
       const exists = prev.completedSubjects.some(
         (c) => c.subjectId === subjectId
@@ -233,6 +330,15 @@ export function App() {
       const nextTopics = exists
         ? prev.completedTopicIds.filter((id) => id !== topicId)
         : [...prev.completedTopicIds, topicId];
+
+      if (!exists) {
+        handleAwardXP(40, 'Topic completed');
+        triggerConfetti();
+        if (currentMood.energy === 'high') {
+          setGamification((prevGam) => checkAndAwardBadge(prevGam, 'high_voltage'));
+        }
+      }
+
       return {
         ...prev,
         completedTopicIds: nextTopics,
@@ -243,6 +349,10 @@ export function App() {
 
   const handleUpdateTopicQuizScore = (topicId: string, score: number) => {
     const clamped = Math.max(0, Math.min(100, score));
+    if (clamped >= 80) {
+      handleAwardXP(60, 'Scored 80%+ on quiz');
+      setGamification((prev) => checkAndAwardBadge(prev, 'quiz_ace'));
+    }
     setProfile((prev) => ({
       ...prev,
       topicQuizScores: {
@@ -259,6 +369,11 @@ export function App() {
       const nextBookmarks = exists
         ? prev.bookmarkedResourceIds.filter((id) => id !== resourceId)
         : [...prev.bookmarkedResourceIds, resourceId];
+
+      if (!exists && nextBookmarks.length >= 3) {
+        setGamification((prevGam) => checkAndAwardBadge(prevGam, 'resource_hound'));
+      }
+
       return {
         ...prev,
         bookmarkedResourceIds: nextBookmarks,
@@ -291,6 +406,7 @@ export function App() {
   };
 
   const handleAcknowledgeMentorNote = (noteId: string) => {
+    setGamification((prev) => checkAndAwardBadge(prev, 'mentor_sync'));
     setMentorNotes((prev) =>
       prev.map((n) => (n.id === noteId ? { ...n, acknowledged: true } : n))
     );
@@ -305,6 +421,7 @@ export function App() {
   };
 
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
+  const levelInfo = calculateLevel(gamification.totalXP);
 
   const sidebarItems: Array<{
     id: NavigationTab;
@@ -317,6 +434,12 @@ export function App() {
       label: 'Executive Dashboard',
       shortLabel: 'Dashboard',
       icon: LayoutDashboard,
+    },
+    {
+      id: 'planner',
+      label: 'Weekly Smart Planner',
+      shortLabel: 'Planner',
+      icon: Calendar,
     },
     {
       id: 'profile',
@@ -385,7 +508,8 @@ export function App() {
         <nav className="hidden lg:flex items-center gap-6 text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
           {(
             [
-              { id: 'profile', label: 'Profile' },
+              { id: 'dashboard', label: 'Dashboard' },
+              { id: 'planner', label: 'Smart Planner' },
               { id: 'recommendations', label: 'Recommendations' },
               { id: 'roadmap', label: 'Roadmaps' },
               { id: 'analytics', label: 'Analytics' },
@@ -407,7 +531,39 @@ export function App() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
+          {/* Daily Streak Flame */}
+          <button
+            type="button"
+            onClick={() => setShowGamificationModal(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-orange-200 dark:border-orange-900/60 bg-orange-50/80 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/60 transition-all font-mono font-bold text-xs shadow-2xs"
+            title={`${gamification.streakDays} Day Active Study Streak - View XP & Badges`}
+          >
+            <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-pulse" />
+            <span>{gamification.streakDays}</span>
+          </button>
+
+          {/* Level & XP Badge */}
+          <button
+            type="button"
+            onClick={() => setShowGamificationModal(true)}
+            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-all text-xs font-semibold shadow-2xs"
+            title={`Level ${levelInfo.level}: ${levelInfo.title} (${gamification.totalXP} XP)`}
+          >
+            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+            <span>Lvl {levelInfo.level}</span>
+          </button>
+
+          {/* Share Profile Card Button */}
+          <button
+            type="button"
+            onClick={() => setShowShareCardModal(true)}
+            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors whitespace-nowrap shadow-2xs"
+            title="Open Shareable Student Passport Card (PNG / PDF)"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Share Card</span>
+          </button>
           <div className="relative">
             <button
               type="button"
@@ -635,6 +791,23 @@ export function App() {
               onNavigateTab={setActiveTab}
               onOpenSubjectRoadmap={handleOpenRoadmapForSubject}
               isOverviewMode={true}
+              currentMood={currentMood}
+              onUpdateMood={handleUpdateMood}
+              gamification={gamification}
+              onOpenGamificationModal={() => setShowGamificationModal(true)}
+              onOpenShareCardModal={() => setShowShareCardModal(true)}
+            />
+          )}
+
+          {activeTab === 'planner' && (
+            <WeeklySmartPlannerView
+              profile={profile}
+              subjects={subjects}
+              sessions={sessions}
+              settings={plannerSettings}
+              onUpdateSessions={setSessions}
+              onUpdateSettings={setPlannerSettings}
+              onAwardXP={handleAwardXP}
             />
           )}
 
@@ -678,6 +851,11 @@ export function App() {
               onNavigateTab={setActiveTab}
               onOpenSubjectRoadmap={handleOpenRoadmapForSubject}
               isOverviewMode={false}
+              currentMood={currentMood}
+              onUpdateMood={handleUpdateMood}
+              gamification={gamification}
+              onOpenGamificationModal={() => setShowGamificationModal(true)}
+              onOpenShareCardModal={() => setShowShareCardModal(true)}
             />
           )}
 
@@ -731,6 +909,22 @@ export function App() {
           onClose={() => setShowExportModal(false)}
         />
       )}
+
+      {/* Gamification, Streak & Badges Modal */}
+      <GamificationModal
+        state={gamification}
+        isOpen={showGamificationModal}
+        onClose={() => setShowGamificationModal(false)}
+      />
+
+      {/* Shareable Profile Passport Card Modal */}
+      <ShareableProfileCardModal
+        profile={profile}
+        subjects={subjects}
+        gamification={gamification}
+        isOpen={showShareCardModal}
+        onClose={() => setShowShareCardModal(false)}
+      />
 
       {/* Floating Ophelia Chatbot Launcher */}
       {!showOpheliaChat && (

@@ -4,11 +4,15 @@ import {
   Subject,
   LearningResource,
   NavigationTab,
+  EnergyMood,
+  MoodCheckIn,
+  GamificationState,
 } from '../types/academic';
 import {
   computeSubjectRecommendations,
   getSubjectProgressPercentage,
 } from '../utils/recommendationEngine';
+import { MoodCheckInBar } from './MoodCheckInBar';
 import {
   CheckCircle2,
   AlertTriangle,
@@ -16,6 +20,14 @@ import {
   ArrowRight,
   Sliders,
   BarChart3,
+  Flame,
+  Trophy,
+  Share2,
+  Zap,
+  BatteryCharging,
+  Video,
+  FileText,
+  Code2,
 } from 'lucide-react';
 
 interface AnalyticsDashboardViewProps {
@@ -27,6 +39,11 @@ interface AnalyticsDashboardViewProps {
   onNavigateTab: (tab: NavigationTab) => void;
   onOpenSubjectRoadmap: (subjectId: string) => void;
   isOverviewMode?: boolean;
+  currentMood?: MoodCheckIn;
+  onUpdateMood?: (mood: EnergyMood) => void;
+  gamification?: GamificationState;
+  onOpenGamificationModal?: () => void;
+  onOpenShareCardModal?: () => void;
 }
 
 export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
@@ -38,6 +55,11 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
   onNavigateTab,
   onOpenSubjectRoadmap,
   isOverviewMode = false,
+  currentMood = { energy: 'moderate', checkedInAt: new Date().toISOString() },
+  onUpdateMood,
+  gamification,
+  onOpenGamificationModal,
+  onOpenShareCardModal,
 }) => {
   const [selectedSubjectForChecklist, setSelectedSubjectForChecklist] =
     useState<string>(subjects[0]?.id || 'subj-prog');
@@ -151,22 +173,123 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {onOpenGamificationModal && gamification && (
+            <button
+              type="button"
+              onClick={onOpenGamificationModal}
+              className="px-3 py-2 text-xs font-semibold bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/60 border border-orange-200 dark:border-orange-800 rounded-lg transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <Flame className="w-3.5 h-3.5 fill-orange-500 text-orange-500" />
+              <span>{gamification.streakDays} Day Streak · {gamification.totalXP} XP</span>
+            </button>
+          )}
+
+          {onOpenShareCardModal && (
+            <button
+              type="button"
+              onClick={onOpenShareCardModal}
+              className="px-3 py-2 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Share Profile Card</span>
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={() => onNavigateTab('profile')}
-            className="px-3.5 py-2 text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap"
+            onClick={() => onNavigateTab('planner')}
+            className="px-3.5 py-2 text-xs font-medium bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60 border border-sky-200 dark:border-sky-800 rounded-lg transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
           >
-            Edit Profile & Marks
+            <span>Weekly Planner</span>
           </button>
+
           <button
             type="button"
             onClick={() => onNavigateTab('recommendations')}
             className="px-4 py-2 text-xs font-medium bg-sky-600 text-white rounded-lg hover:bg-sky-500 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
           >
-            <span>Explore Top 5 Recommendations</span>
+            <span>Top Recommendations</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
+
+      {/* Mood & Energy Adaptive Controller */}
+      <MoodCheckInBar
+        currentMood={currentMood}
+        onUpdateMood={onUpdateMood || (() => {})}
+      />
+
+      {/* Adaptive Energy Study Pack */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-50 via-white to-sky-50/50 dark:from-slate-900 dark:via-slate-900 dark:to-sky-950/30 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-base">
+              {currentMood.energy === 'high' && '⚡'}
+              {currentMood.energy === 'moderate' && '💡'}
+              {currentMood.energy === 'low' && '🔋'}
+              {currentMood.energy === 'sprint' && '🎯'}
+            </span>
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
+              {currentMood.energy === 'high' && "Today's High-Energy Power Pack (Intensive Labs & Challenges)"}
+              {currentMood.energy === 'moderate' && "Today's Balanced Syllabus Progression Pack"}
+              {currentMood.energy === 'low' && "Today's Low-Fatigue Micro-Learning Pack (Streak Saver)"}
+              {currentMood.energy === 'sprint' && "Today's 15-Minute High-Yield Sprint Pack"}
+            </h3>
+          </div>
+          <span className="text-[11px] font-mono font-medium text-slate-400">
+            Tuned to your stamina
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {resources
+            .filter((res) => {
+              if (currentMood.energy === 'low') {
+                return res.type === 'video' || res.difficulty === 'Beginner';
+              }
+              if (currentMood.energy === 'high') {
+                return res.type === 'practice' || res.difficulty === 'Advanced';
+              }
+              if (currentMood.energy === 'sprint') {
+                return res.type === 'notes';
+              }
+              return true;
+            })
+            .slice(0, 3)
+            .map((res) => (
+              <div
+                key={res.id}
+                className="p-3 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                    <span className="font-mono uppercase font-bold text-sky-600 dark:text-sky-400">
+                      {res.type}
+                    </span>
+                    <span>{res.durationOrLength}</span>
+                  </div>
+                  <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 line-clamp-2">
+                    {res.title}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                    {res.description}
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">{res.provider}</span>
+                  <a
+                    href={res.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-sky-600 dark:text-sky-400 hover:underline"
+                  >
+                    Open Resource →
+                  </a>
+                </div>
+              </div>
+            ))}
         </div>
       </div>
 

@@ -7,6 +7,9 @@ import {
   AcademicNotification,
   InterestDomain,
   CareerGoal,
+  StudySession,
+  PlannerSettings,
+  MoodCheckIn,
 } from '../types/academic';
 
 export const ALL_INTEREST_DOMAINS: InterestDomain[] = [
@@ -1072,3 +1075,101 @@ export const INITIAL_NOTIFICATIONS: AcademicNotification[] = [
     actionTab: 'roadmap',
   },
 ];
+
+export const INITIAL_STUDY_SESSIONS: StudySession[] = [
+  {
+    id: 'sess-1',
+    subjectId: 'subj-db',
+    subjectCode: 'CS202',
+    subjectName: 'Database Management Systems',
+    topicId: 'top-db-2',
+    topicTitle: 'Unit 2: B+ Trees & Query Optimizer Internals',
+    day: 'Monday',
+    slot: 'Morning',
+    durationMinutes: 60,
+    difficulty: 'Intermediate',
+    completed: true,
+    isWeakArea: true,
+  },
+  {
+    id: 'sess-2',
+    subjectId: 'subj-prog',
+    subjectCode: 'CS101',
+    subjectName: 'Programming & Data Structures',
+    topicId: 'top-prog-2',
+    topicTitle: 'Unit 2: Trees, Graphs & Dynamic Programming',
+    day: 'Tuesday',
+    slot: 'Evening',
+    durationMinutes: 90,
+    difficulty: 'Intermediate',
+    completed: true,
+    isWeakArea: false,
+  },
+  {
+    id: 'sess-3',
+    subjectId: 'subj-ai',
+    subjectCode: 'CS401',
+    subjectName: 'Artificial Intelligence & Machine Learning',
+    topicId: 'top-ai-1',
+    topicTitle: 'Unit 1: Supervised Learning & Loss Optimization',
+    day: 'Wednesday',
+    slot: 'Afternoon',
+    durationMinutes: 60,
+    difficulty: 'Intermediate',
+    completed: false,
+    isWeakArea: false,
+  },
+  {
+    id: 'sess-4',
+    subjectId: 'subj-net',
+    subjectCode: 'CS204',
+    subjectName: 'Computer Networks & Distributed Systems',
+    topicId: 'top-net-1',
+    topicTitle: 'Unit 1: Transport Layer & TCP Flow Control',
+    day: 'Thursday',
+    slot: 'Morning',
+    durationMinutes: 60,
+    difficulty: 'Intermediate',
+    completed: false,
+    isWeakArea: false,
+  },
+  {
+    id: 'sess-5',
+    subjectId: 'subj-math',
+    subjectCode: 'MA201',
+    subjectName: 'Discrete Mathematics & Linear Algebra',
+    topicId: 'top-math-1',
+    topicTitle: 'Unit 1: Eigenvalues, Vector Spaces & Matrix Decomposition',
+    day: 'Friday',
+    slot: 'Evening',
+    durationMinutes: 60,
+    difficulty: 'Advanced',
+    completed: false,
+    isWeakArea: false,
+  },
+  {
+    id: 'sess-6',
+    subjectId: 'subj-web',
+    subjectCode: 'CS303',
+    subjectName: 'Modern Full-Stack Web Engineering',
+    topicId: 'top-web-1',
+    topicTitle: 'Unit 1: Asynchronous JavaScript & State Architecture',
+    day: 'Saturday',
+    slot: 'Morning',
+    durationMinutes: 90,
+    difficulty: 'Beginner',
+    completed: false,
+    isWeakArea: false,
+  },
+];
+
+export const INITIAL_PLANNER_SETTINGS: PlannerSettings = {
+  weeklyAvailableHours: 12,
+  preferredSlots: ['Morning', 'Evening'],
+};
+
+export const INITIAL_MOOD_CHECKIN: MoodCheckIn = {
+  energy: 'moderate',
+  checkedInAt: new Date().toISOString(),
+};
+
