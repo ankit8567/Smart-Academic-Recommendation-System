@@ -25,6 +25,7 @@ import { CollaborativeView } from './components/CollaborativeView';
 import { MentorView } from './components/MentorView';
 import { AdminPanelView } from './components/AdminPanelView';
 import { StudyPlanExportModal } from './components/StudyPlanExportModal';
+import { OpheliaChatbot } from './components/OpheliaChatbot';
 import {
   Sun,
   Moon,
@@ -41,6 +42,7 @@ import {
   Settings,
   Menu,
   X,
+  Bot,
 } from 'lucide-react';
 
 const STORAGE_KEYS = {
@@ -114,6 +116,7 @@ export function App() {
   const [showNotificationsDropdown, setShowNotificationsDropdown] =
     useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showOpheliaChat, setShowOpheliaChat] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -479,6 +482,16 @@ export function App() {
 
           <button
             type="button"
+            onClick={() => setShowOpheliaChat(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 border border-sky-200 dark:border-sky-800 rounded-lg transition-colors whitespace-nowrap shadow-xs"
+            title="Ask Ophelia - Gemini Academic Advisor"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+            <span className="font-semibold">Ask Ophelia</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowExportModal(true)}
             className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-sky-600 hover:bg-sky-500 rounded-lg transition-colors whitespace-nowrap"
           >
@@ -718,6 +731,34 @@ export function App() {
           onClose={() => setShowExportModal(false)}
         />
       )}
+
+      {/* Floating Ophelia Chatbot Launcher */}
+      {!showOpheliaChat && (
+        <button
+          type="button"
+          onClick={() => setShowOpheliaChat(true)}
+          className="no-print fixed bottom-5 right-5 z-40 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white rounded-full shadow-xl hover:shadow-2xl transition-all duration-200 hover:-translate-y-0.5 group focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+          aria-label="Open Ophelia Academic AI Advisor"
+        >
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4 animate-pulse" />
+          </div>
+          <div className="text-left pr-1">
+            <div className="text-xs font-bold leading-tight flex items-center gap-1.5">
+              <span>Ophelia</span>
+              <span className="text-[10px] font-mono font-medium bg-white/20 px-1.5 py-0.5 rounded">Gemini AI</span>
+            </div>
+            <div className="text-[10px] text-sky-100 leading-tight">Academic Advisor</div>
+          </div>
+        </button>
+      )}
+
+      <OpheliaChatbot
+        profile={profile}
+        subjects={subjects}
+        isOpen={showOpheliaChat}
+        onClose={() => setShowOpheliaChat(false)}
+      />
     </div>
   );
 }
