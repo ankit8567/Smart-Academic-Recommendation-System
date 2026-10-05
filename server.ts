@@ -19,13 +19,17 @@ app.get('/api/health', (_req, res) => {
 // Ophelia Gemini Chat endpoint
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, history, context } = req.body || {};
+    const { message, history, userContext, context } = req.body || {};
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    const reply = await askOphelia({ message, history, context });
+    const reply = await askOphelia({
+      message,
+      history,
+      userContext: userContext || context,
+    });
     return res.status(200).json({ reply });
   } catch (error: any) {
     console.error('Error handling /api/chat:', error);

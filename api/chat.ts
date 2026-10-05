@@ -1,12 +1,20 @@
 import { GoogleGenAI } from '@google/genai';
 
-function getGeminiClient(): GoogleGenAI | null {
+/**
+ * Initializes the official Google GenAI client using process.env.GEMINI_API_KEY.
+ * Never hardcodes or exposes keys to the client.
+ */
+function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    return null;
+  if (!apiKey || apiKey.trim() === '' || apiKey === 'MY_GEMINI_API_KEY') {
+    throw new Error(
+      'GEMINI_API_KEY is not configured in the server environment. ' +
+      'Please add GEMINI_API_KEY in Vercel: Project Settings > Environment Variables, then trigger a redeploy.'
+    );
   }
+
   return new GoogleGenAI({
-    apiKey,
+    apiKey: apiKey.trim(),
     httpOptions: {
       headers: {
         'User-Agent': 'aistudio-build',
@@ -15,72 +23,95 @@ function getGeminiClient(): GoogleGenAI | null {
   });
 }
 
-export async function askOphelia(params: {
+export interface UserContext {
+  studentName?: string;
+  program?: string;
+  branch?: string;
+  semester?: number | string;
+  cgpa?: number | string;
+  careerGoal?: string;
+  learningStyle?: string;
+  weakAreas?: string[];
+  topRecommendations?: string[];
+  [key: string]: any;
+}
+
+export interface AskOpheliaParams {
   message: string;
   history?: Array<{ role: 'user' | 'model'; parts: string }>;
-  context?: {
-    studentName?: string;
-    program?: string;
-    branch?: string;
-    semester?: number;
-    cgpa?: number;
-    careerGoal?: string;
-    learningStyle?: string;
-    weakAreas?: string[];
-    topRecommendations?: string[];
-  };
-}): Promise<string> {
-  const client = getGeminiClient();
+  userContext?: UserContext;
+  context?: UserContext; // alias for backwards compatibility
+}
 
-  const studentContext = params.context
-    ? `Student Academic Profile:\n` +
-      `- Name: ${params.context.studentName || 'Student'}\n` +
-      `- Degree: ${params.context.program || 'Engineering'} (${params.context.branch || 'Computer Science'}), Semester ${params.context.semester || 4}\n` +
-      `- Current CGPA: ${params.context.cgpa ? params.context.cgpa.toFixed(2) : '8.1'}\n` +
-      `- Career Goal: ${params.context.careerGoal || 'Software Engineer'}\n` +
-      `- Learning Modality: ${params.context.learningStyle || 'video/practice'}\n` +
-      `- Flagged Weak Areas / Remediation: ${params.context.weakAreas?.length ? params.context.weakAreas.join(', ') : 'None'}\n` +
-      `- Key Recommended Subjects: ${params.context.topRecommendations?.length ? params.context.topRecommendations.join(', ') : 'General'}\n`
-    : '';
+/**
+ * Core Ophelia reasoning function using @google/genai.
+ * Formats student context, validates alternating user/model turns,
+ * and uses primary model with active fallbacks.
+ */
+export async function askOphelia(params: AskOpheliaParams): Promise<string> {
+  const ai = getGeminiClient();
+  const ctx = params.userContext || params.context || {};
+
+  const name = ctx.studentName || 'Student';
+  const program = ctx.program || 'B.Tech';
+  const branch = ctx.branch || 'Computer Science & Engineering';
+  const semester = ctx.semester || 4;
+  const cgpa = ctx.cgpa || '8.42';
+  const careerGoal = ctx.careerGoal || 'AI/ML Engineer';
+  const learningStyle = ctx.learningStyle || 'video/practice';
+  const weakAreas = Array.isArray(ctx.weakAreas) && ctx.weakAreas.length
+    ? ctx.weakAreas.join(', ')
+    : 'None currently flagged';
+  const recommendations = Array.isArray(ctx.topRecommendations) && ctx.topRecommendations.length
+    ? ctx.topRecommendations.join(', ')
+    : 'Core Computer Science curriculum';
 
   const systemInstruction =
-    `You are "Ophelia", an empathetic, highly knowledgeable, strategic Academic Advisor & Mentor for university students.\n` +
-    `Your primary role is to directly and thoroughly answer the student's queries, whether they are asking about course roadmaps, prerequisite sequencing, study habits, exam prep, or computer science concepts (e.g. data structures, algorithms, databases, networking, OS, AI/ML).\n` +
+    `You are "Ophelia", an empathetic, highly knowledgeable, and strategic Academic and Career Advisor for university engineering students.\n` +
+    `Your goal is to directly and thoroughly answer the student's questions, guide them on course selection, study strategies, prerequisite sequencing, weak-area remediation, concept explanations, and career roadmap milestones.\n\n` +
+    `Current Student Context:\n` +
+    `- Name: ${name}\n` +
+    `- Program: ${program} in ${branch}, Semester ${semester}\n` +
+    `- Current CGPA: ${cgpa}\n` +
+    `- Target Career Goal: ${careerGoal}\n` +
+    `- Learning Modality: ${learningStyle}\n` +
+    `- Flagged Weak Areas / Focus Units: ${weakAreas}\n` +
+    `- Top Recommended Courses: ${recommendations}\n\n` +
     `Guidelines:\n` +
-    `1. Directly and helpfully answer what the user asks. If they ask a concept question (like TCP vs UDP, or Dijkstra's algorithm, or normalization), explain it clearly with structured sections, examples, or step-by-step points.\n` +
-    `2. If they ask for academic planning, tie advice directly to their target career goal (${params.context?.careerGoal || 'their career path'}) and their current semester (${params.context?.semester || 'their semester'}).\n` +
-    `3. Keep the tone warm, intellectually rigorous, encouraging, and clear.\n` +
-    `4. Format with bold headers and bullet points for readability.\n\n` +
-    studentContext;
+    `1. Directly and helpfully answer whatever the student asks. If they ask a conceptual question (e.g. data structures, algorithms, databases, machine learning, systems), explain it clearly with structured sections, real-world examples, or step-by-step logic.\n` +
+    `2. If they ask about study priorities, schedule, or career progression, tie your advice directly to their target career goal (${careerGoal}), their coursework, and academic standing.\n` +
+    `3. Maintain an encouraging, intellectually rigorous, and structured tone.\n` +
+    `4. Format with markdown bolding, bullet points, and numbered steps for high readability.\n` +
+    `5. Keep answers focused and actionable (typically 150-300 words unless more detail is requested).`;
 
-  // Sanitize and normalize history to ensure strict user/model alternation required by Gemini API
+  // Sanitize history so that Gemini API receives strict user -> model alternating turns
   const cleanContents: Array<{ role: 'user' | 'model'; parts: [{ text: string }] }> = [];
 
   if (params.history && Array.isArray(params.history)) {
-    for (const item of params.history) {
-      if (!item || typeof item.parts !== 'string' || !item.parts.trim()) continue;
-      const role: 'user' | 'model' = item.role === 'model' ? 'model' : 'user';
+    for (const h of params.history) {
+      if (!h || typeof h.parts !== 'string' || !h.parts.trim()) continue;
+      const role: 'user' | 'model' = h.role === 'model' ? 'model' : 'user';
 
       // Gemini history cannot start with a model message
       if (cleanContents.length === 0 && role === 'model') continue;
 
-      // Avoid consecutive messages with the same role
+      // Do not allow consecutive turns with the same role
       if (cleanContents.length > 0 && cleanContents[cleanContents.length - 1].role === role) {
         cleanContents[cleanContents.length - 1] = {
           role,
-          parts: [{ text: item.parts.trim() }],
+          parts: [{ text: h.parts.trim() }],
         };
         continue;
       }
 
       cleanContents.push({
         role,
-        parts: [{ text: item.parts.trim() }],
+        parts: [{ text: h.parts.trim() }],
       });
     }
   }
 
-  // Ensure last message in history was 'model' before appending current user message
+  // Ensure last turn before new user message was model
   if (cleanContents.length > 0 && cleanContents[cleanContents.length - 1].role === 'user') {
     cleanContents.pop();
   }
@@ -90,44 +121,127 @@ export async function askOphelia(params: {
     parts: [{ text: params.message.trim() }],
   });
 
-  if (client) {
-    // Model strategy: Try gemini-3.8-flash first; if high demand (503) occurs, fall back to gemini-3.1-flash-lite
-    const modelsToTry = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+  // Model hierarchy:
+  // Primary: 'gemini-3.8-flash' (or custom process.env.GEMINI_MODEL)
+  // Fallbacks: 'gemini-3.1-flash-lite', 'gemini-flash-latest'
+  const customModel = process.env.GEMINI_MODEL?.trim();
+  const modelsToTry = [
+    ...(customModel ? [customModel] : []),
+    'gemini-3.8-flash',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
+  ];
+  const uniqueModels = Array.from(new Set(modelsToTry));
 
-    for (const model of modelsToTry) {
-      try {
-        const response = await client.models.generateContent({
-          model,
-          contents: cleanContents,
-          config: {
-            systemInstruction,
-            temperature: 0.7,
-            topP: 0.95,
-          },
-        });
+  let lastError: any = null;
 
-        if (response.text && response.text.trim()) {
-          return response.text.trim();
-        }
-      } catch (err: any) {
-        console.warn(`Model ${model} attempt failed:`, err?.message || err);
-        // Continue to fallback model
+  for (const model of uniqueModels) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: cleanContents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        },
+      });
+
+      if (response && response.text && response.text.trim()) {
+        return response.text.trim();
       }
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[Ophelia] Model ${model} failed, trying next available model:`, err?.message || err);
     }
   }
 
-  // Intelligent contextual fallback if Gemini service is completely unreachable
-  const name = params.context?.studentName || 'Student';
-  const goal = params.context?.careerGoal || 'Software Engineer';
-  const userQuery = params.message.trim();
+  throw lastError || new Error('No response was generated by available Gemini models.');
+}
 
-  return (
-    `Hello ${name}! Ophelia here.\n\n` +
-    `Regarding your question: **"${userQuery}"**:\n\n` +
-    `As your academic advisor preparing you for a career as a **${goal}**:\n` +
-    `• **Direct Assessment:** Ensure you balance theoretical understanding with hands-on practice in your Resource Library.\n` +
-    `• **Actionable Next Step:** Break down this topic into 25-minute focused blocks and test yourself with the diagnostic quizzes on your dashboard.\n` +
-    `• **Milestone Link:** Connecting this to your core curriculum will reinforce prerequisites for your upcoming semester electives.\n\n` +
-    `*(Note: Real-time Gemini models are reconnecting. Please feel free to ask follow-up questions.)*`
-  );
+/**
+ * Safely parses request body for Vercel Serverless Function & Node.js HTTP.
+ */
+async function parseRequestBody(req: any): Promise<any> {
+  if (req.body && typeof req.body === 'object') {
+    return req.body;
+  }
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  const raw = Buffer.concat(chunks).toString('utf-8');
+  if (!raw.trim()) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Vercel Serverless Function entry point (/api/chat).
+ * Handles CORS preflight, enforces POST method, and returns real JSON error on failure.
+ */
+export default async function handler(req: any, res: any) {
+  // 1. CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 200;
+    return res.end();
+  }
+
+  // 2. Enforce POST
+  if (req.method !== 'POST') {
+    res.statusCode = 405;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(
+      JSON.stringify({
+        error: `Method ${req.method} Not Allowed. Only POST is supported.`,
+      })
+    );
+  }
+
+  // 3. Process chat query
+  try {
+    const body = await parseRequestBody(req);
+    const { message, history, userContext, context } = body || {};
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(
+        JSON.stringify({ error: 'Field "message" (string) is required in request body.' })
+      );
+    }
+
+    const reply = await askOphelia({
+      message: message.trim(),
+      history,
+      userContext: userContext || context,
+    });
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ reply }));
+  } catch (error: any) {
+    console.error('[Ophelia /api/chat error]:', error);
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(
+      JSON.stringify({
+        error: error?.message || 'Internal server error while processing request with Ophelia.',
+      })
+    );
+  }
 }

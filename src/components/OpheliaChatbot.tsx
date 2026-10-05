@@ -107,7 +107,7 @@ export const OpheliaChatbot: React.FC<OpheliaChatbotProps> = ({
         body: JSON.stringify({
           message: query,
           history: historyPayload,
-          context: {
+          userContext: {
             studentName: profile.name,
             program: profile.program,
             branch: profile.branch,
@@ -124,8 +124,25 @@ export const OpheliaChatbot: React.FC<OpheliaChatbotProps> = ({
       });
 
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `HTTP ${res.status}: Failed to get response from Ophelia`);
+        let serverErrorText = '';
+        try {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const errJson = await res.json();
+            serverErrorText = errJson.error || errJson.message || JSON.stringify(errJson);
+          } else {
+            const textBody = await res.text();
+            serverErrorText = textBody.trim();
+          }
+        } catch {
+          // ignore parsing error
+        }
+
+        const errorMessage = serverErrorText
+          ? `HTTP ${res.status}: ${serverErrorText}`
+          : `HTTP ${res.status}: Failed to get response from Ophelia. Please verify GEMINI_API_KEY is set in Vercel Project Settings > Environment Variables.`;
+
+        throw new Error(errorMessage);
       }
 
       const data = await res.json();
@@ -178,7 +195,7 @@ export const OpheliaChatbot: React.FC<OpheliaChatbotProps> = ({
                 Ophelia
               </span>
               <span className="text-[10px] font-mono font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800">
-                Gemini 3.8 Flash
+                Gemini Flash AI
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">

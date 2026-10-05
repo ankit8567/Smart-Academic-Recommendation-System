@@ -6,10 +6,6 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/api/chat",
-      "destination": "/api/index"
-    },
-    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
